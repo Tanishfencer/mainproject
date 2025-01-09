@@ -77,21 +77,33 @@ router.post('/register', async (req, res) => {
   try {
     console.log('Registration request received:', {
       email: req.body.email,
-      hasPassword: !!req.body.password
+      hasPassword: !!req.body.password,
+      body: req.body
     });
 
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+      console.log('Missing required fields:', { email: !!email, password: !!password });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email and password are required' 
+      });
     }
 
+    console.log('Checking for existing user with email:', email);
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already registered' });
+      console.log('User already exists with email:', email);
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email already registered' 
+      });
     }
 
     const verificationToken = crypto.randomBytes(32).toString('hex');
+    console.log('Creating new user with verification token:', verificationToken);
+
     const user = new User({
       email,
       password,
@@ -99,75 +111,66 @@ router.post('/register', async (req, res) => {
       verificationTokenExpires: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
     });
 
-    await user.save();
-    console.log('User saved to database:', user._id);
+    try {
+      await user.save();
+      console.log('User saved successfully:', user._id);
+    } catch (saveError) {
+      console.error('Error saving user:', {
+        error: saveError.message,
+        validationErrors: saveError.errors
+      });
+      throw saveError;
+    }
 
-    // Send verification email
     const verificationUrl = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
-    console.log('Attempting to send verification email:', {
-      to: email,
-      verificationUrl
-    });
+    console.log('Sending verification email to:', email);
+    console.log('Verification URL:', verificationUrl);
 
     try {
-      const info = await transporter.sendMail({
+      await transporter.sendMail({
         from: {
           name: 'Smart Parking System',
           address: EMAIL_USER
         },
         to: email,
-        subject: 'Verify Your Email - Smart Parking System',
+        subject: 'Verify Your Email',
         html: `
-          <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
-            <h2 style="color: #333;">Welcome to Smart Parking System!</h2>
-            <p>Thank you for registering! Please verify your email address by clicking the button below:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${verificationUrl}" 
-                 style="background-color: #4CAF50; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Welcome to Smart Parking System!</h2>
+            <p>Please click the link below to verify your email address:</p>
+            <p>
+              <a href="${verificationUrl}" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
                 Verify Email
               </a>
-            </div>
-            <p>Or copy and paste this link in your browser:</p>
-            <p style="color: #666; word-break: break-all;">${verificationUrl}</p>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">
-              If you didn't create an account, you can safely ignore this email.
-              This link will expire in 24 hours.
             </p>
+            <p>
+              Or copy and paste this link in your browser:<br>
+              ${verificationUrl}
+            </p>
+            <p>This link will expire in 24 hours.</p>
           </div>
-        `,
-        text: `Welcome to Smart Parking System!\n\nPlease verify your email by clicking this link: ${verificationUrl}\n\nThis link will expire in 24 hours.`
+        `
       });
-
-      console.log('Verification email sent successfully:', {
-        messageId: info.messageId,
-        response: info.response,
-        accepted: info.accepted,
-        rejected: info.rejected
-      });
-
-      res.status(201).json({ 
-        message: 'Registration successful. Please check your email to verify your account.',
-        userId: user._id
-      });
+      console.log('Verification email sent successfully');
     } catch (emailError) {
-      console.error('Detailed email error:', {
-        name: emailError.name,
-        message: emailError.message,
+      console.error('Error sending verification email:', {
+        error: emailError.message,
         code: emailError.code,
-        command: emailError.command,
-        response: emailError.response,
-        stack: emailError.stack
+        response: emailError.response
       });
-
-      // Delete the user if email fails
-      await User.findByIdAndDelete(user._id);
-      throw new Error(`Failed to send verification email: ${emailError.message}`);
+      throw emailError;
     }
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful. Please check your email to verify your account.'
+    });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
-      message: error.message || 'Registration failed',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during registration',
+      error: error.message
     });
   }
 });
