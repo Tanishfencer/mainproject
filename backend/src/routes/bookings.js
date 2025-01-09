@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Booking = require('../models/booking');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
@@ -310,19 +311,22 @@ router.get('/history/:userId', async (req, res) => {
     console.log('Fetching booking history for user:', req.params.userId);
     
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      console.log('Invalid user ID format:', req.params.userId);
       return res.status(400).json({ 
         success: false,
         message: 'Invalid user ID format' 
       });
     }
 
+    console.log('Querying database for bookings...');
     const bookings = await Booking.find({
       userId: req.params.userId
     })
     .sort({ startTime: -1 })
-    .lean();  // Convert to plain JavaScript objects for better performance
+    .lean();
 
     console.log(`Found ${bookings.length} bookings for user:`, req.params.userId);
+    console.log('Bookings:', JSON.stringify(bookings, null, 2));
     
     res.json({
       success: true,

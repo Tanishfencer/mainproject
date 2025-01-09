@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BackgroundGradient } from '@/components/ui/background-gradient';
 import { toast } from '@/components/ui/use-toast';
+import { NearbyParking } from '@/components/map/NearbyParking';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -85,9 +86,12 @@ export function Dashboard() {
         </motion.div>
 
         <Tabs defaultValue="book" className="space-y-8">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3">
             <TabsTrigger value="book" className="data-[state=active]:bg-primary data-[state=active]:text-white">
               Book Parking
+            </TabsTrigger>
+            <TabsTrigger value="nearby" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+              Nearby Parking
             </TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-primary data-[state=active]:text-white">
               My Bookings
@@ -136,6 +140,16 @@ export function Dashboard() {
                 )}
               </motion.div>
             )}
+          </TabsContent>
+
+          <TabsContent value="nearby">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-sm shadow-xl rounded-xl p-6 border border-gray-200/50"
+            >
+              <NearbyParking />
+            </motion.div>
           </TabsContent>
 
           <TabsContent value="history">

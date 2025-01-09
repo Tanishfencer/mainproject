@@ -55,7 +55,7 @@ export function BookingForm({ selectedSpot, onSubmit, userId, isLoading = false 
   useEffect(() => {
     const checkActiveBooking = async () => {
       try {
-        const response = await fetch(`/api/bookings/active/${userId}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/active/${userId}`);
         const data = await response.json();
         if (data.hasActiveBooking) {
           toast({
@@ -77,7 +77,7 @@ export function BookingForm({ selectedSpot, onSubmit, userId, isLoading = false 
       
       // Check for active bookings
       try {
-        const activeBookingCheck = await fetch(`http://localhost:8000/api/bookings/active/${userId}`);
+        const activeBookingCheck = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/active/${userId}`);
         if (!activeBookingCheck.ok) {
           throw new Error('Failed to check active bookings');
         }
@@ -110,7 +110,7 @@ export function BookingForm({ selectedSpot, onSubmit, userId, isLoading = false 
       });
 
       // Send OTP
-      const response = await fetch('http://localhost:8000/api/bookings/send-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/send-otp`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
@@ -164,7 +164,7 @@ export function BookingForm({ selectedSpot, onSubmit, userId, isLoading = false 
         otp
       });
 
-      const response = await fetch('http://localhost:8000/api/bookings/verify-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

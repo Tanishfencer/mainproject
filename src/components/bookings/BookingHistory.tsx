@@ -5,23 +5,15 @@ import { Car, Bike, Zap, Bus, Calendar, Clock, Ban } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Booking {
-  id: string;
+  _id: string;
   spotId: string;
-  spotLabel: string;
   vehicleNumber: string;
   startTime: string;
   endTime: string;
   totalCost: number;
-  status: 'active' | 'completed' | 'cancelled';
-  vehicleType: 'car' | 'bike' | 'ev' | 'bus';
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: string;
 }
-
-const vehicleIcons = {
-  car: Car,
-  bike: Bike,
-  ev: Zap,
-  bus: Bus,
-};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -45,35 +37,64 @@ interface BookingHistoryProps {
 export function BookingHistory({ userId }: BookingHistoryProps) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const response = await fetch(`/api/bookings/history/${userId}`);
+        setLoading(true);
+        setError(null);
+        console.log('Fetching bookings for user:', userId);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/history/${userId}`);
         const data = await response.json();
-        setBookings(data);
+        console.log('Received bookings data:', data);
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch bookings');
+        }
+        
+        setBookings(data.bookings || []);
       } catch (error) {
         console.error('Failed to fetch bookings:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch bookings');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBookings();
+    if (userId) {
+      fetchBookings();
+    }
   }, [userId]);
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await fetch(`/api/bookings/${bookingId}/cancel`, {
-        method: 'POST'
+      console.log('Cancelling booking:', bookingId);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}api/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
-      // Refresh bookings
-      const response = await fetch(`/api/bookings/history/${userId}`);
       const data = await response.json();
-      setBookings(data);
+      console.log('Cancel booking response:', data);
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to cancel booking');
+      }
+      
+      // Update the booking status in the local state
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking._id === bookingId 
+            ? { ...booking, status: 'cancelled' as const }
+            : booking
+        )
+      );
     } catch (error) {
       console.error('Failed to cancel booking:', error);
+      // You might want to show an error toast here
     }
   };
 
@@ -81,6 +102,15 @@ export function BookingHistory({ userId }: BookingHistoryProps) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-8 bg-red-50 rounded-lg">
+        <Ban className="w-12 h-12 mx-auto text-red-400 mb-4" />
+        <p className="text-red-500">{error}</p>
       </div>
     );
   }
@@ -105,12 +135,11 @@ export function BookingHistory({ userId }: BookingHistoryProps) {
           </motion.div>
         ) : (
           bookings.map((booking) => {
-            const VehicleIcon = vehicleIcons[booking.vehicleType];
-            const isActive = booking.status === 'active';
+            const isActive = booking.status === 'confirmed';
             
             return (
               <motion.div
-                key={booking.id}
+                key={booking._id}
                 variants={itemVariants}
                 className={`p-6 rounded-lg shadow-sm border ${
                   isActive ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'
@@ -121,20 +150,20 @@ export function BookingHistory({ userId }: BookingHistoryProps) {
                     <div className={`p-2 rounded-full ${
                       isActive ? 'bg-blue-100' : 'bg-gray-100'
                     }`}>
-                      <VehicleIcon className={`w-6 h-6 ${
+                      <Car className={`w-6 h-6 ${
                         isActive ? 'text-blue-600' : 'text-gray-600'
                       }`} />
                     </div>
                     <div>
-                      <h3 className="font-semibold">{booking.spotLabel}</h3>
+                      <h3 className="font-semibold">Spot {booking.spotId}</h3>
                       <p className="text-sm text-gray-500">{booking.vehicleNumber}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">₹{booking.totalCost}</p>
                     <span className={`text-sm ${
-                      booking.status === 'active' ? 'text-blue-600' :
-                      booking.status === 'completed' ? 'text-green-600' :
+                      booking.status === 'confirmed' ? 'text-blue-600' :
+                      booking.status === 'pending' ? 'text-yellow-600' :
                       'text-red-600'
                     }`}>
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
@@ -145,14 +174,16 @@ export function BookingHistory({ userId }: BookingHistoryProps) {
                 <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4" />
-                    <span>{format(new Date(booking.startTime), 'PPp')}</span>
+                    <span>
+                      {format(new Date(booking.startTime), 'PPp')} - {format(new Date(booking.endTime), 'p')}
+                    </span>
                   </div>
                   
                   {isActive && (
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleCancelBooking(booking.id)}
+                      onClick={() => handleCancelBooking(booking._id)}
                       className="flex items-center space-x-1"
                     >
                       <Ban className="w-4 h-4" />
