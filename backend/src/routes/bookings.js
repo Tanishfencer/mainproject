@@ -201,48 +201,76 @@ router.get('/active/:userId', async (req, res) => {
     const activeBooking = await Booking.findOne({
       userId: req.params.userId,
       endTime: { $gt: currentTime },
-      status: 'active'
+      status: 'confirmed'
     });
 
     res.json({
+      success: true,
       hasActiveBooking: !!activeBooking,
       booking: activeBooking
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to check active booking' });
+    console.error('Error checking active booking:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to check active booking',
+      error: error.message 
+    });
   }
 });
 
 // Create new booking
 router.post('/', async (req, res) => {
   try {
+    console.log('Creating new booking:', req.body);
     const { userId, spotId, vehicleNumber, startTime, endTime, totalCost } = req.body;
     
+    if (!userId || !spotId || !vehicleNumber || !startTime || !endTime) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Missing required booking fields' 
+      });
+    }
+
     // Check for active bookings
     const hasActiveBooking = await Booking.findOne({
       userId,
       endTime: { $gt: new Date() },
-      status: 'active'
+      status: 'confirmed'
     });
 
     if (hasActiveBooking) {
-      return res.status(400).json({ error: 'User already has an active booking' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already has an active booking' 
+      });
     }
 
     const booking = new Booking({
       userId,
       spotId,
       vehicleNumber,
-      startTime,
-      endTime,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
       totalCost,
-      status: 'active'
+      status: 'confirmed'
     });
 
     await booking.save();
-    res.status(201).json(booking);
+    console.log('Booking created successfully:', booking);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Booking created successfully',
+      booking
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create booking' });
+    console.error('Error creating booking:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to create booking',
+      error: error.message 
+    });
   }
 });
 
@@ -251,27 +279,62 @@ router.post('/:bookingId/cancel', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId);
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Booking not found' 
+      });
     }
 
     booking.status = 'cancelled';
     await booking.save();
-    res.json(booking);
+    console.log('Booking cancelled successfully:', booking);
+    
+    res.json({
+      success: true,
+      message: 'Booking cancelled successfully',
+      booking
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to cancel booking' });
+    console.error('Error cancelling booking:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to cancel booking',
+      error: error.message 
+    });
   }
 });
 
 // Get user's booking history
 router.get('/history/:userId', async (req, res) => {
   try {
+    console.log('Fetching booking history for user:', req.params.userId);
+    
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid user ID format' 
+      });
+    }
+
     const bookings = await Booking.find({
       userId: req.params.userId
-    }).sort({ startTime: -1 });
+    })
+    .sort({ startTime: -1 })
+    .lean();  // Convert to plain JavaScript objects for better performance
 
-    res.json(bookings);
+    console.log(`Found ${bookings.length} bookings for user:`, req.params.userId);
+    
+    res.json({
+      success: true,
+      bookings: bookings
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch booking history' });
+    console.error('Error fetching booking history:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch booking history',
+      error: error.message 
+    });
   }
 });
 
