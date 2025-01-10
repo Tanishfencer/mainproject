@@ -122,6 +122,7 @@ router.post('/register', async (req, res) => {
       throw saveError;
     }
 
+    // Construct verification URL without the hash
     const verificationUrl = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
     console.log('Sending verification email to:', email);
     console.log('Verification URL:', verificationUrl);
@@ -178,39 +179,68 @@ router.post('/register', async (req, res) => {
 // Verify email
 router.get('/verify/:token', async (req, res) => {
   try {
-    console.log('Verification request received for token:', req.params.token);
-    
+    console.log('Verification request received:', {
+      token: req.params.token,
+      headers: req.headers,
+      url: req.url
+    });
+
+    if (!req.params.token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token is required'
+      });
+    }
+
     const user = await User.findOne({
       verificationToken: req.params.token,
       verificationTokenExpires: { $gt: Date.now() }
     });
 
-    console.log('User found:', user ? 'yes' : 'no');
+    console.log('Verification attempt:', {
+      tokenFound: !!user,
+      userEmail: user ? user.email : 'not found',
+      tokenExpired: user ? user.verificationTokenExpires < Date.now() : 'N/A',
+      isVerified: user ? user.isVerified : 'N/A'
+    });
 
     if (!user) {
-      console.log('Invalid or expired token');
       return res.status(400).json({
         success: false,
         message: 'Invalid or expired verification token'
       });
     }
 
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified'
+      });
+    }
+
+    // Update user verification status
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
+    
     await user.save();
+    
+    console.log('User verified successfully:', user.email);
 
-    console.log('User verified successfully');
     return res.status(200).json({
       success: true,
       message: 'Email verified successfully'
     });
   } catch (error) {
-    console.error('Verification error:', error);
+    console.error('Verification error:', {
+      error: error.message,
+      stack: error.stack,
+      token: req.params.token
+    });
+    
     return res.status(500).json({
       success: false,
-      message: 'An error occurred during verification',
-      error: error.message
+      message: 'An error occurred during verification'
     });
   }
 });
@@ -220,21 +250,34 @@ router.post('/login', async (req, res) => {
   try {
     console.log('Login attempt for email:', req.body.email);
     const { email, password } = req.body;
+    
+    // Find user and check verification status
     const user = await User.findOne({ email }).select('+password');
 
-    if (!user || !(await user.comparePassword(password))) {
-      console.log('Invalid credentials for email:', email);
+    if (!user) {
+      console.log('User not found:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
 
+    // Check password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      console.log('Invalid password for user:', email);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check verification status
     if (!user.isVerified) {
       console.log('Unverified user attempt:', email);
       return res.status(401).json({
         success: false,
-        message: 'Please verify your email first'
+        message: 'Please verify your email before logging in'
       });
     }
 
@@ -246,7 +289,11 @@ router.post('/login', async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Login successful',
-      userId: user._id,
+      user: {
+        id: user._id,
+        email: user.email,
+        isVerified: user.isVerified
+      },
       token
     });
   } catch (error) {

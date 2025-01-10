@@ -29,7 +29,10 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/verify/:token" element={<VerifyEmail />} />
+      {/* Legacy hash route support */}
+      <Route path="/#/verify/:token" element={<VerifyEmail />} />
       <Route
         path="/dashboard"
         element={

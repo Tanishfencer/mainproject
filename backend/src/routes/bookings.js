@@ -69,10 +69,9 @@ router.post('/send-otp', async (req, res) => {
           <p>Booking Details:</p>
           <ul>
             <li>Spot: ${bookingDetails.spotId}</li>
-            <li>Vehicle: ${bookingDetails.vehicleNumber}</li>
-            <li>Start Time: ${new Date(bookingDetails.startTime).toLocaleString()}</li>
-            <li>End Time: ${new Date(bookingDetails.endTime).toLocaleString()}</li>
-            <li>Total Cost: $${bookingDetails.totalCost}</li>
+            <li>Vehicle: ${bookingDetails.registrationNumber}</li>
+            <li>Start Time: ${bookingDetails.startTime}</li>
+            <li>End Time: ${bookingDetails.endTime}</li>
           </ul>
         </div>
       `
@@ -165,7 +164,7 @@ router.post('/verify-otp', async (req, res) => {
     
     // Create booking with correct field mapping
     const booking = new Booking({
-      userId: storedData.bookingDetails.userId,
+      userId: new mongoose.Types.ObjectId(), // Generate a new ObjectId without conversion
       spotId: storedData.bookingDetails.spotId,
       vehicleNumber: storedData.bookingDetails.registrationNumber,
       startTime: startTime,
@@ -200,7 +199,7 @@ router.get('/active/:userId', async (req, res) => {
   try {
     const currentTime = new Date();
     const activeBooking = await Booking.findOne({
-      userId: req.params.userId,
+      userId: mongoose.Types.ObjectId(req.params.userId),
       endTime: { $gt: currentTime },
       status: 'confirmed'
     });
@@ -235,7 +234,7 @@ router.post('/', async (req, res) => {
 
     // Check for active bookings
     const hasActiveBooking = await Booking.findOne({
-      userId,
+      userId: mongoose.Types.ObjectId(userId),
       endTime: { $gt: new Date() },
       status: 'confirmed'
     });
@@ -248,7 +247,7 @@ router.post('/', async (req, res) => {
     }
 
     const booking = new Booking({
-      userId,
+      userId: new mongoose.Types.ObjectId(userId),
       spotId,
       vehicleNumber,
       startTime: new Date(startTime),
@@ -320,7 +319,7 @@ router.get('/history/:userId', async (req, res) => {
 
     console.log('Querying database for bookings...');
     const bookings = await Booking.find({
-      userId: req.params.userId
+      userId: mongoose.Types.ObjectId(req.params.userId)
     })
     .sort({ startTime: -1 })
     .lean();

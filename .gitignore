@@ -4,11 +4,6 @@ backend/node_modules/
 /.pnp
 .pnp.js
 
-# Environment files
-.env
-backend/.env
-.env.*
-
 # Build and output
 dist/
 build/
@@ -39,6 +34,10 @@ Thumbs.db
 .cache/
 .temp/
 .bolt/
+
+# Environment variables
+.env
+backend/.env
 
 # Lock files (optional, but recommended to include)
 # package-lock.json
